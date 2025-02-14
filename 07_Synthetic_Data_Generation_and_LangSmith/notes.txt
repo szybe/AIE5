@@ -1,0 +1,96 @@
+This notebook demonstrates an end‐to‐end workflow for generating and evaluating synthetic test data for a retrieval-augmented generation (RAG) system. Here’s a high-level overview of what the code does:
+
+1. Setup and Dependencies  
+   - Installation & API Configuration:  
+     The notebook begins by installing necessary packages (e.g., RAGAS, LangChain-related libraries, Qdrant, etc.) and setting environment variables for tracing and API keys for both LangChain and OpenAI. It also sets a unique project name.
+
+2. Data Collection and Preparation  
+   - Downloading Webpages:  
+     Two HTML pages (from Simon Willison’s blog for 2023 and 2024) are downloaded into a local `data/` directory.
+   - Loading Data:  
+     The HTML files are loaded into a LangChain-compatible format using a `DirectoryLoader`, turning them into document objects that contain both the page content and metadata.
+
+3. Knowledge Graph Construction and Transformation  
+   - Graph Initialization:  
+     A knowledge graph is created, and each document is added as a node.
+   - Default Transformations:  
+     The notebook applies default transforms (e.g., summarizing, headline extraction, theme extraction) to each node. These transforms enrich the graph by creating additional nodes and establishing relationships between them based on semantic similarity.
+   - Saving and Reloading:  
+     The knowledge graph is saved to disk and then reloaded, making it reusable for synthetic query generation.
+
+4. Synthetic Data Generation  
+   - Testset Generation:  
+     A `TestsetGenerator` is instantiated with the enriched knowledge graph. It uses query synthesizers to generate synthetic questions along with corresponding reference answers and context.
+   - Query Synthesizers:  
+     Three different types are defined (more on these in Question 1 below), each designed to simulate different styles of queries (from straightforward to multi-hop reasoning).
+
+5. LangSmith Dataset Integration  
+   - Creating a Dataset:  
+     The synthetic data is then loaded into a LangSmith dataset. Each synthetic example (comprising a question, answer, and context) is added to the dataset, preparing it for evaluation.
+
+6. Building a Basic RAG Pipeline  
+   - Document Splitting & Vectorization:  
+     The documents are split into smaller chunks using a text splitter. These chunks are then embedded into vector space using an OpenAI embedding model, and a Qdrant vector store is created to enable similarity search.
+   - Retriever and Prompt Setup:  
+     A retriever is configured to fetch relevant text chunks based on a query. A prompt template is defined for the LLM to generate answers solely from the retrieved context.
+   - RAG Chain:  
+     A RAG chain is composed that combines retrieval and generation. The chain uses a lightweight LLM (gpt-4o-mini) to produce answers from the context.
+
+7. Evaluation using LangSmith  
+   - Evaluator Setup:  
+     Several evaluators (using GPT-4o) are defined to assess the quality of the generated answers. These include:
+     - A QA evaluator to check factual correctness.
+     - A “labeled helpfulness” evaluator to measure how useful the answer is compared to the reference.
+     - A “dope or nope” evaluator to give a qualitative, fun score.
+   - Running Evaluations:  
+     The original RAG chain is evaluated against the synthetic test dataset.
+
+8. Enhancing (“Dope-ifying”) the RAG Chain  
+   - Prompt Augmentation:  
+     A “dope” prompt is created to encourage the model to answer in a more conversational and engaging style.
+   - Modifying Chunk Size & Embedding Model:  
+     The chunk size is increased to provide larger pieces of context, and a more powerful embedding model (`text-embedding-3-large`) is used to potentially improve retrieval performance.
+   - Re-evaluation:  
+     The improved RAG chain is then re-evaluated using the same set of evaluators to compare performance changes.
+
+---
+
+ Questions from the Notebook
+
+ ❓ Question 1: What are the three types of query synthesizers doing? Describe each one in simple terms.
+
+- SingleHopSpecificQuerySynthesizer:  
+  Simple Query Generation  
+  It generates direct, one-step queries that target a specific piece of information from the data. Think of it as asking a straightforward question where the answer can be found in one clear spot.
+
+- MultiHopAbstractQuerySynthesizer:  
+  Complex, Abstract Reasoning  
+  This synthesizer creates questions that require combining information from multiple parts of the knowledge graph in an abstract way. It simulates queries where you need to “connect the dots” between different pieces of data.
+
+- MultiHopSpecificQuerySynthesizer:  
+  Complex, Detail-Oriented Querying  
+  Similar to the abstract version, but with a focus on specific details. It generates questions that, while requiring multiple steps to answer, aim to extract a precise, detailed answer by linking several specific pieces of information.
+
+---
+
+ ❓ Question 2: Why would modifying our chunk size modify the performance of our application?
+
+The chunk size determines how much text is grouped together when splitting the document:
+- Larger chunks provide more context per piece, which can help the LLM generate more informed and coherent answers because it has more information at once. However, too large a chunk might dilute specific details.
+- Smaller chunks offer more granular control and can lead to more precise retrieval, but they might miss out on the broader context needed for comprehensive answers.
+  
+In essence, the chunk size balances context richness and retrieval precision, impacting the overall performance of the retrieval and answer generation process.
+
+---
+
+ ❓ Question 3: Why would modifying our embedding model modify the performance of our application?
+
+The embedding model converts text into vector representations that capture semantic meaning:
+- More advanced models (e.g., “text-embedding-3-large”) can generate richer, more nuanced embeddings. This improves the similarity search, meaning the retriever is better at fetching the most relevant chunks of text.
+- Better embeddings lead to more accurate context retrieval, which directly influences the quality of the answers generated by the LLM.
+  
+Thus, the choice of embedding model affects how well the system understands and matches the semantic content of both the query and the documents, impacting overall application performance.
+
+---
+
+This notebook is a great example of integrating synthetic data generation, knowledge graphs, retrieval-augmented generation, and evaluation in one cohesive workflow.
